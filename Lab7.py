@@ -257,6 +257,91 @@ def make_reservation(conn):
     finally:
         cursor.close()  # Close cursor at the very end
 
+def cancel_reservation(conn):
+    #Wtr25_365_028139910
+    # Get name of customer to search for reservations
+    print("Reservation Cancellation Request:\n")
+    firstname = input('Enter Firstname: ').capitalize().strip()
+    lastname = input('Enter Lastname: ').capitalize().strip()
+    for char in '%_[]^-{}':
+        if char in firstname or char in lastname:
+            print("Invalid characters used, returning to home.")
+            return
+
+    if not conn.is_connected():
+        print("Database connection lost. Reconnecting...")
+        conn.reconnect()
+
+    cursor = None
+    try:
+        query = (f"""
+            SELECT * 
+            FROM jthammet.lab7_reservations AS r 
+            WHERE r.firstname = \"{firstname}\" AND lastname = \"{lastname}\" 
+            ORDER BY r.checkin""")
+        cursor = conn.cursor(query)
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+
+        df = pd.DataFrame(rows, columns=columns)
+        currentreservations = df.to_string(index=False)
+        if df.empty:
+            print("No reservations found.")
+
+        else:
+            while True:
+                print(f"\n**Reservations for {firstname} {lastname}**")
+
+                print(currentreservations)
+                #Get code of reservation they want to cancel
+                selectedres = input("Select the code of the reservation you want to cancel or type EXIT: ").upper()
+                #need to check if code is one of their reservations
+                if selectedres == 'EXIT':
+                    print("Returning to home\n")
+                    return
+                elif type(selectedres) == int:
+                    query = (f"""
+                        WITH t1 as (
+                            SELECT * 
+                            FROM jthammet.lab7_reservations AS r 
+                            WHERE r.firstname = \"{firstname}\" AND lastname = \"{lastname}\" 
+                            ORDER BY r.checkin
+                        ) SELECT t1.code
+                            FROM t1
+                            WHERE t1.code = {selectedres}""")
+                    cursor = conn.cursor(query)
+                    cursor.execute(query)
+                    rows = cursor.fetchall()
+                    columns = [desc[0] for desc in cursor.description]
+                    df = pd.DataFrame(rows, columns=columns)
+                    if df.empty:
+                        print(f"The reservation with code {selectedres} was not found under your name.")
+                    else:
+                        while True:
+                            #Confirm input
+                            conf = input("Confirm? (Yes/No):")
+                            if conf == 'Yes':
+                                print(f"The reservation with code: {selectedres} has been cancelled.")
+                                query = (f"""DELETE 
+                                            FROM jthammet.lab7_reservations as r
+                                            WHERE r.CODE = {selectedres}""")
+                                cursor = conn.cursor(query)
+                                cursor.execute(query)
+                                return
+                            elif conf =='No':
+                                return
+                else:
+                    print("Invalid Input, returning to home")
+                    return
+
+    except mysql.connector.Error as err:
+        print(f"Database query error: {err}")
+    finally:
+        if cursor:
+            cursor.close()
+
+
 
 
 if __name__ == "__main__":
@@ -268,7 +353,7 @@ if __name__ == "__main__":
 
     try:
         while True:
-            print("\nOptions:\n1: Rooms and Rates\n2: Reservations\n0: Exit\n")
+            print("\nOptions:\n1: Rooms and Rates\n2: Reservations\n3: Cancel Reservation\n0: Exit\n")
 
             try:
                 selection = int(input("Selection: "))
@@ -280,6 +365,8 @@ if __name__ == "__main__":
                 get_rooms_and_rates(conn)  # Pass connection (not reopening it)
             elif selection == 2:
                 make_reservation(conn)
+            elif selection == 3:
+                cancel_reservation(conn)
             elif selection == 0:
                 print("Exiting program.")
                 break 
