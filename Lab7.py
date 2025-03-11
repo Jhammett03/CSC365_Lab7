@@ -258,7 +258,6 @@ def make_reservation(conn):
         cursor.close()  # Close cursor at the very end
 
 def cancel_reservation(conn):
-    #Wtr25_365_028139910
     # Get name of customer to search for reservations
     print("Reservation Cancellation Request:\n")
     firstname = input('Enter Firstname: ').capitalize().strip()
@@ -341,7 +340,77 @@ def cancel_reservation(conn):
         if cursor:
             cursor.close()
 
+def reservation_info(conn):
+    print("\n***RESERVATION INFORMATION***\n")
+    fqline = ''
+    lqline = ''
+    roomqline = ''
+    dateqline = ''
+    resqline = ''
+    firstname = input('Enter Firstname, Leave Blank For Any: ').strip()
+    if firstname != '':
+        for char in '%_[]^-{}':
+            if char in firstname:
+                fqline = f"AND r.firstname LIKE \"{firstname}\""
+            else:
+                fqline = f"AND r.firstname = \"{firstname}\""
+    lastname = input('Enter Lastname or Any: ').strip()
+    if lastname != '':
+        for char in '%_[]^-{}':
+            if char in lastname:
+                lqline = f"AND r.lastname LIKE \"{lastname}\""
+            else:
+                lqline = f"AND r.lastname = \"{lastname}\""
+    startdate = input('Enter Starting Date or Leave Blank for Any: ').strip()
+    enddate = input('Enter End Date or Leave Blank for Any: ').strip()
+    roomcode = input('Enter Room Code or Any: ').strip()
+    if roomcode != '':
+        for char in '%_[]^-{}':
+            if char in roomcode:
+                roomqline = f"AND r.room LIKE \"{roomcode}\""
+            else:
+                roomqline = f"AND r.room = \"{roomcode}\""
+    reservationcode = input('Enter Reservation Code or Any: ')
+    if startdate != '' and enddate != '':
+        dateqline = f'AND ((r.checkin <= \'{startdate}\' AND r.checkout >= \'{startdate}\') OR (r.checkin <= \'{enddate}\' AND r.checkout >= \'{enddate}\'))'
+    elif startdate != '' and enddate == '':
+        dateqline = f'AND (r.checkin <= \'{startdate}\' AND r.checkout >= \'{startdate}\')'
+    elif startdate == '' and enddate != '':
+        dateqline = f'AND (r.checkin <= \'{enddate}\' AND r.checkout >= \'{enddate}\')'
+    if reservationcode != '':
+        resqline = f'AND r.CODE = \'{reservationcode}\''
 
+    checkifallempty = fqline + lqline + dateqline + roomqline + resqline
+
+    if checkifallempty == '':
+        query = """SELECT * FROM jthammet.lab7_reservations"""
+    else:
+        query = f"""SELECT *
+                    FROM jthammet.lab7_reservations as r
+                    where 1 = 1 {fqline} {lqline} {dateqline} {roomqline} {resqline}"""
+
+    if not conn.is_connected():
+        print("Database connection lost. Reconnecting...")
+        conn.reconnect()
+
+    cursor = None
+    try:
+
+        cursor = conn.cursor(query)
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+
+        df = pd.DataFrame(rows, columns=columns)
+        if df.empty:
+            print("No reservations found.")
+        else:
+            print('\n' + df.to_string(index=False))
+    except mysql.connector.Error as err:
+        print(f"Database query error: {err}")
+    finally:
+        if cursor:
+            cursor.close()
 
 
 if __name__ == "__main__":
@@ -353,7 +422,7 @@ if __name__ == "__main__":
 
     try:
         while True:
-            print("\nOptions:\n1: Rooms and Rates\n2: Reservations\n3: Cancel Reservation\n0: Exit\n")
+            print("\nOptions:\n1: Rooms and Rates\n2: Reservations\n3: Cancel Reservation\n4: Reservation Info\n0: Exit\n")
 
             try:
                 selection = int(input("Selection: "))
@@ -367,6 +436,8 @@ if __name__ == "__main__":
                 make_reservation(conn)
             elif selection == 3:
                 cancel_reservation(conn)
+            elif selection == 4:
+                reservation_info(conn)
             elif selection == 0:
                 print("Exiting program.")
                 break 
