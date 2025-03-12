@@ -295,6 +295,10 @@ def cancel_reservation(conn):
                 print(currentreservations)
                 #Get code of reservation they want to cancel
                 selectedres = input("Select the code of the reservation you want to cancel or type EXIT: ").upper()
+                for char in "%_[]^-{}":
+                    if char in selectedres:
+                        print("Invalid characters used, returning home.")
+                        return
                 #need to check if code is one of their reservations
                 if selectedres == 'EXIT':
                     print("Returning to home\n")
@@ -352,6 +356,7 @@ def reservation_info(conn):
         for char in '%_[]^-{}':
             if char in firstname:
                 fqline = f"AND r.firstname LIKE \"{firstname}\""
+                break
             else:
                 fqline = f"AND r.firstname = \"{firstname}\""
     lastname = input('Enter Lastname or Any: ').strip()
@@ -359,18 +364,32 @@ def reservation_info(conn):
         for char in '%_[]^-{}':
             if char in lastname:
                 lqline = f"AND r.lastname LIKE \"{lastname}\""
+                break
             else:
                 lqline = f"AND r.lastname = \"{lastname}\""
     startdate = input('Enter Starting Date or Leave Blank for Any: ').strip()
+    for char in "%_[]^-{}":
+        if char in startdate:
+            print("Invalid characters used, returning home.")
+            return
     enddate = input('Enter End Date or Leave Blank for Any: ').strip()
+    for char in "%_[]^-{}":
+        if char in enddate:
+            print("Invalid characters used, returning home.")
+            return
     roomcode = input('Enter Room Code or Any: ').strip()
     if roomcode != '':
         for char in '%_[]^-{}':
             if char in roomcode:
                 roomqline = f"AND r.room LIKE \"{roomcode}\""
+                break
             else:
                 roomqline = f"AND r.room = \"{roomcode}\""
     reservationcode = input('Enter Reservation Code or Any: ')
+    for char in "%_[]^-{}":
+        if char in reservationcode:
+            print("Invalid characters used, returning home.")
+            return
     if startdate != '' and enddate != '':
         dateqline = f'AND ((r.checkin <= \'{startdate}\' AND r.checkout >= \'{startdate}\') OR (r.checkin <= \'{enddate}\' AND r.checkout >= \'{enddate}\'))'
     elif startdate != '' and enddate == '':
