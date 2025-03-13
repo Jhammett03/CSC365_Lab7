@@ -303,7 +303,8 @@ def cancel_reservation(conn):
                 if selectedres == 'EXIT':
                     print("Returning to home\n")
                     return
-                elif type(selectedres) == int:
+                try:
+                    selectedres = int(selectedres)
                     query = (f"""
                         WITH t1 as (
                             SELECT * 
@@ -323,7 +324,7 @@ def cancel_reservation(conn):
                     else:
                         while True:
                             #Confirm input
-                            conf = input("Confirm? (Yes/No):")
+                            conf = input("Confirm? (Yes/No): ")
                             if conf == 'Yes':
                                 print(f"The reservation with code: {selectedres} has been cancelled.")
                                 query = (f"""DELETE 
@@ -334,7 +335,7 @@ def cancel_reservation(conn):
                                 return
                             elif conf =='No':
                                 return
-                else:
+                except:
                     print("Invalid Input, returning to home")
                     return
 
