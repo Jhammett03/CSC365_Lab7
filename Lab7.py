@@ -103,7 +103,7 @@ def make_reservation(conn):
     first_name = input("First Name: ").strip()
     last_name = input("Last Name: ").strip()
     room_preference = input("Room Code (or 'Any'): ").strip().upper()
-    bed_type = input("Bed Type (or 'Any'): ").strip().capitalize()
+    bed_type = input("Bed Type (King, Queen, Double or 'Any'): ").strip().capitalize()
     start_date = input("Begin Date (YYYY-MM-DD): ").strip()
     end_date = input("End Date (YYYY-MM-DD): ").strip()
 
@@ -360,7 +360,7 @@ def reservation_info(conn):
                 break
             else:
                 fqline = f"AND r.firstname = \"{firstname}\""
-    lastname = input('Enter Lastname or Any: ').strip()
+    lastname = input('Enter Lastname or Leave Blank For Any: ').strip()
     if lastname != '':
         for char in '%_[]^-{}':
             if char in lastname:
@@ -369,16 +369,16 @@ def reservation_info(conn):
             else:
                 lqline = f"AND r.lastname = \"{lastname}\""
     startdate = input('Enter Starting Date or Leave Blank for Any: ').strip()
-    for char in "%_[]^-{}":
+    for char in "%_[]^{}":
         if char in startdate:
             print("Invalid characters used, returning home.")
             return
-    enddate = input('Enter End Date or Leave Blank for Any: ').strip()
-    for char in "%_[]^-{}":
+    enddate = input('Enter End Date or Leave Blank For Any: ').strip()
+    for char in "%_[]^{}":
         if char in enddate:
             print("Invalid characters used, returning home.")
             return
-    roomcode = input('Enter Room Code or Any: ').strip()
+    roomcode = input('Enter Room Code or Leave Blank For Any: ').strip()
     if roomcode != '':
         for char in '%_[]^-{}':
             if char in roomcode:
@@ -386,7 +386,7 @@ def reservation_info(conn):
                 break
             else:
                 roomqline = f"AND r.room = \"{roomcode}\""
-    reservationcode = input('Enter Reservation Code or Any: ')
+    reservationcode = input('Enter Reservation Code or Leave Blank For Any: ')
     for char in "%_[]^-{}":
         if char in reservationcode:
             print("Invalid characters used, returning home.")
@@ -432,6 +432,72 @@ def reservation_info(conn):
         if cursor:
             cursor.close()
 
+def revenue(con):
+    print("***RETRIEVING REVENUE REPORT***")
+    if not conn.is_connected():
+        print("Database connection lost. Reconnecting...")
+        conn.reconnect()
+    cursor = None
+    try:
+        query = (f"""
+                WITH REC1
+                URSIVE datetable AS (
+                    -- Generate daily dates for the current year dynamically
+                    SELECT DATE_FORMAT(CURDATE(), '%Y-01-01') AS date_value
+                    UNION ALL
+                    SELECT DATE_ADD(date_value, INTERVAL 1 DAY)
+                    FROM datetable
+                    WHERE date_value < DATE_FORMAT(CURDATE(), '%Y-12-31')
+                )
+                SELECT 
+                    revenue_data.RoomName,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 1  THEN daily_revenue ELSE 0 END), 0) AS Jan,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 2  THEN daily_revenue ELSE 0 END), 0) AS Feb,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 3  THEN daily_revenue ELSE 0 END), 0) AS Mar,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 4  THEN daily_revenue ELSE 0 END), 0) AS Apr,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 5  THEN daily_revenue ELSE 0 END), 0) AS May,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 6  THEN daily_revenue ELSE 0 END), 0) AS Jun,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 7  THEN daily_revenue ELSE 0 END), 0) AS Jul,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 8  THEN daily_revenue ELSE 0 END), 0) AS Aug,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 9  THEN daily_revenue ELSE 0 END), 0) AS Sep,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 10 THEN daily_revenue ELSE 0 END), 0) AS Oct,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 11 THEN daily_revenue ELSE 0 END), 0) AS Nov,
+                    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 12 THEN daily_revenue ELSE 0 END), 0) AS `Dec`,
+                    ROUND(SUM(daily_revenue), 0) AS Total
+                FROM (
+                    -- Calculate per-day revenue for each reservation, adjusting for weekends
+                    SELECT 
+                        dt.date_value AS stay_date,
+                        rooms.RoomName,
+                        ROUND(
+                            CASE 
+                                WHEN WEEKDAY(dt.date_value) IN (5,6) -- Saturday or Sunday
+                                THEN res.Rate * 1.1  -- Weekend rate = 110% of base rate
+                                ELSE res.Rate
+                            END / DATEDIFF(res.CheckOut, res.CheckIn), 2
+                        ) AS daily_revenue
+                    FROM datetable dt
+                    JOIN jthammet.lab7_reservations res 
+                        ON dt.date_value >= res.CheckIn AND dt.date_value < res.CheckOut
+                    JOIN jthammet.lab7_rooms rooms 
+                        ON res.Room = rooms.RoomCode
+                ) revenue_data
+                GROUP BY revenue_data.RoomName
+                ORDER BY Total DESC;
+                    """)
+        cursor = conn.cursor(query)
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+
+        df = pd.DataFrame(rows, columns=columns)
+        print(df.to_string(index=False))
+
+    except mysql.connector.Error as err:
+        print(f"Database query error: {err}")
+    finally:
+        if cursor:
+            cursor.close()
 
 if __name__ == "__main__":
     conn = get_db_connection()  # Open connection once at the start
@@ -442,7 +508,7 @@ if __name__ == "__main__":
 
     try:
         while True:
-            print("\nOptions:\n1: Rooms and Rates\n2: Reservations\n3: Cancel Reservation\n4: Reservation Info\n0: Exit\n")
+            print("\nOptions:\n1: Rooms and Rates\n2: Reservations\n3: Cancel Reservation\n4: Reservation Info\n5: Revenue\n0: Exit\n")
 
             try:
                 selection = int(input("Selection: "))
@@ -458,6 +524,8 @@ if __name__ == "__main__":
                 cancel_reservation(conn)
             elif selection == 4:
                 reservation_info(conn)
+            elif selection == 5:
+                revenue(conn)
             elif selection == 0:
                 print("Exiting program.")
                 break 
@@ -466,50 +534,3 @@ if __name__ == "__main__":
     finally:
         conn.close()  #Close connection only when user exits
         print("Database connection closed.")
-
-
-"""
-WITH RECURSIVE datetable AS (
-    -- Generate daily dates for the current year dynamically
-    SELECT DATE_FORMAT(CURDATE(), '%Y-01-01') AS date_value
-    UNION ALL
-    SELECT DATE_ADD(date_value, INTERVAL 1 DAY)
-    FROM datetable
-    WHERE date_value < DATE_FORMAT(CURDATE(), '%Y-12-31')
-)
-SELECT 
-    revenue_data.RoomName,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 1  THEN daily_revenue ELSE 0 END), 2) AS Jan,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 2  THEN daily_revenue ELSE 0 END), 2) AS Feb,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 3  THEN daily_revenue ELSE 0 END), 2) AS Mar,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 4  THEN daily_revenue ELSE 0 END), 2) AS Apr,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 5  THEN daily_revenue ELSE 0 END), 2) AS May,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 6  THEN daily_revenue ELSE 0 END), 2) AS Jun,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 7  THEN daily_revenue ELSE 0 END), 2) AS Jul,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 8  THEN daily_revenue ELSE 0 END), 2) AS Aug,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 9  THEN daily_revenue ELSE 0 END), 2) AS Sep,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 10 THEN daily_revenue ELSE 0 END), 2) AS Oct,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 11 THEN daily_revenue ELSE 0 END), 2) AS Nov,
-    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 12 THEN daily_revenue ELSE 0 END), 2) AS `Dec`,
-    ROUND(SUM(daily_revenue), 2) AS Total
-FROM (
-    -- Calculate per-day revenue for each reservation, adjusting for weekends
-    SELECT 
-        dt.date_value AS stay_date,
-        rooms.RoomName,
-        ROUND(
-            CASE 
-                WHEN WEEKDAY(dt.date_value) IN (5,6) -- Saturday or Sunday
-                THEN res.Rate * 1.1  -- Weekend rate = 110% of base rate
-                ELSE res.Rate
-            END / DATEDIFF(res.CheckOut, res.CheckIn), 2
-        ) AS daily_revenue
-    FROM datetable dt
-    JOIN jthammet.lab7_reservations res 
-        ON dt.date_value >= res.CheckIn AND dt.date_value < res.CheckOut
-    JOIN jthammet.lab7_rooms rooms 
-        ON res.Room = rooms.RoomCode
-) revenue_data
-GROUP BY revenue_data.RoomName
-ORDER BY Total DESC;
-"""
