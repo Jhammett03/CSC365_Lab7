@@ -440,8 +440,7 @@ def revenue(con):
     cursor = None
     try:
         query = (f"""
-                WITH REC1
-                URSIVE datetable AS (
+                WITH RECURSIVE datetable AS (
                     -- Generate daily dates for the current year dynamically
                     SELECT DATE_FORMAT(CURDATE(), '%Y-01-01') AS date_value
                     UNION ALL
