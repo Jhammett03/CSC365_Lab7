@@ -466,3 +466,50 @@ if __name__ == "__main__":
     finally:
         conn.close()  #Close connection only when user exits
         print("Database connection closed.")
+
+
+"""
+WITH RECURSIVE datetable AS (
+    -- Generate daily dates for the current year dynamically
+    SELECT DATE_FORMAT(CURDATE(), '%Y-01-01') AS date_value
+    UNION ALL
+    SELECT DATE_ADD(date_value, INTERVAL 1 DAY)
+    FROM datetable
+    WHERE date_value < DATE_FORMAT(CURDATE(), '%Y-12-31')
+)
+SELECT 
+    revenue_data.RoomName,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 1  THEN daily_revenue ELSE 0 END), 2) AS Jan,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 2  THEN daily_revenue ELSE 0 END), 2) AS Feb,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 3  THEN daily_revenue ELSE 0 END), 2) AS Mar,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 4  THEN daily_revenue ELSE 0 END), 2) AS Apr,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 5  THEN daily_revenue ELSE 0 END), 2) AS May,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 6  THEN daily_revenue ELSE 0 END), 2) AS Jun,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 7  THEN daily_revenue ELSE 0 END), 2) AS Jul,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 8  THEN daily_revenue ELSE 0 END), 2) AS Aug,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 9  THEN daily_revenue ELSE 0 END), 2) AS Sep,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 10 THEN daily_revenue ELSE 0 END), 2) AS Oct,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 11 THEN daily_revenue ELSE 0 END), 2) AS Nov,
+    ROUND(SUM(CASE WHEN MONTH(revenue_data.stay_date) = 12 THEN daily_revenue ELSE 0 END), 2) AS `Dec`,
+    ROUND(SUM(daily_revenue), 2) AS Total
+FROM (
+    -- Calculate per-day revenue for each reservation, adjusting for weekends
+    SELECT 
+        dt.date_value AS stay_date,
+        rooms.RoomName,
+        ROUND(
+            CASE 
+                WHEN WEEKDAY(dt.date_value) IN (5,6) -- Saturday or Sunday
+                THEN res.Rate * 1.1  -- Weekend rate = 110% of base rate
+                ELSE res.Rate
+            END / DATEDIFF(res.CheckOut, res.CheckIn), 2
+        ) AS daily_revenue
+    FROM datetable dt
+    JOIN jthammet.lab7_reservations res 
+        ON dt.date_value >= res.CheckIn AND dt.date_value < res.CheckOut
+    JOIN jthammet.lab7_rooms rooms 
+        ON res.Room = rooms.RoomCode
+) revenue_data
+GROUP BY revenue_data.RoomName
+ORDER BY Total DESC;
+"""
